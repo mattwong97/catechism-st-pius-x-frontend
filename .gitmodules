@@ -1,0 +1,3 @@
+[submodule "catechism-st-pius-x"]
+	path = catechism-st-pius-x
+	url = https://github.com/mattwong97/catechism-st-pius-x.git
