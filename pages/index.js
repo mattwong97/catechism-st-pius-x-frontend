@@ -3,6 +3,26 @@ import ThemeToggle from '../components/ThemeToggle';
 import GitHubLink from '../components/GitHubLink';
 import { useCatechism } from '../utils/useCatechism';
 
+// Helper function to recursively get all subsection keys
+const getAllSubsectionKeys = (sections) => {
+  const keys = {};
+  
+  sections.forEach((section, sIdx) => {
+    section.subsections?.forEach((subsection, ssIdx) => {
+      const subKey = `${sIdx}-${ssIdx}`;
+      keys[subKey] = true;
+      
+      // Handle nested subsections
+      subsection.subsections?.forEach((_, sssIdx) => {
+        const nestedKey = `${sIdx}-${ssIdx}-${sssIdx}`;
+        keys[nestedKey] = true;
+      });
+    });
+  });
+  
+  return keys;
+};
+
 export default function Home() {
   const [query, setQuery] = useState('');
   const { sections, results } = useCatechism(query);
@@ -20,8 +40,11 @@ export default function Home() {
     
     sections.forEach((section, sectionIndex) => {
       newSectionsState[sectionIndex] = newState;
-      section.subsections.forEach((_, subIndex) => {
-        newSubsectionsState[`${sectionIndex}-${subIndex}`] = newState;
+      
+      // Get all subsection keys and set their state
+      const allKeys = getAllSubsectionKeys(sections);
+      Object.keys(allKeys).forEach(key => {
+        newSubsectionsState[key] = newState;
       });
     });
     
@@ -30,22 +53,66 @@ export default function Home() {
   };
   
   const toggleSection = (index) => {
-    setOpenSections((prev) => ({ ...prev, [index]: !prev[index] }));
-    // When collapsing a section, also collapse all its subsections
-    if (openSections[index]) {
-      const newSubsections = { ...openSubsections };
-      sections[index].subsections.forEach((_, subIndex) => {
-        newSubsections[`${index}-${subIndex}`] = false;
-      });
-      setOpenSubsections(newSubsections);
-    }
+    setOpenSections(prev => ({ ...prev, [index]: !prev[index] }));
   };
   
-  const toggleSubsection = (sectionIndex, subIndex) => {
-    const key = `${sectionIndex}-${subIndex}`;
-    // If the subsection is not in the state, it's collapsed by default
-    const isCurrentlyOpen = openSubsections[key] === true;
-    setOpenSubsections((prev) => ({ ...prev, [key]: !isCurrentlyOpen }));
+  const toggleSubsection = (path) => {
+    setOpenSubsections(prev => ({ ...prev, [path]: !prev[path] }));
+  };
+  
+  const isSubsectionOpen = (path) => {
+    return openSubsections[path] === true;
+  };
+  
+  // Recursive function to render subsections
+  const renderSubsections = (subsections, path = '') => {
+    if (!subsections || subsections.length === 0) return null;
+    
+    return subsections.map((subsection, index) => {
+      const currentPath = path ? `${path}-${index}` : `${index}`;
+      const isOpen = isSubsectionOpen(currentPath);
+      
+      return (
+        <div key={index} className="space-y-2 border-l-2 border-gray-200 dark:border-gray-700 pl-4">
+          <button
+            onClick={() => toggleSubsection(currentPath)}
+            className="w-full text-left flex justify-between items-center py-2 font-semibold text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          >
+            <span className="text-lg">{subsection.title}</span>
+            <svg
+              className={`w-5 h-5 transform transition-transform ${
+                isOpen ? 'rotate-180' : ''
+              }`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {isOpen && (
+            <div className="space-y-4 pl-4">
+              {subsection.questions?.map((q, qIndex) => (
+                <div key={qIndex} className="border-b border-gray-200 dark:border-gray-700 pb-4 last:border-0 last:pb-0">
+                  <div className="grid gap-2 mb-1" style={{gridTemplateColumns:'auto 1fr'}}>
+                    <span className="font-bold text-gray-700 dark:text-gray-300">Q.</span>
+                    <p className="font-semibold text-gray-800 dark:text-gray-200">{q.question}</p>
+                  </div>
+                  <div className="grid gap-2 mt-2" style={{gridTemplateColumns:'auto 1fr'}}>
+                    <span className="font-bold text-gray-700 dark:text-gray-300">A.</span>
+                    <p className="text-gray-700 dark:text-gray-300">{q.answer}</p>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Recursively render nested subsections */}
+              {renderSubsections(subsection.subsections, currentPath)}
+            </div>
+          )}
+        </div>
+      );
+    });
   };
 
   return (
@@ -121,48 +188,7 @@ export default function Home() {
               </button>
               {openSections[sectionIndex] && (
                 <div className="p-4 space-y-6">
-                  {section.subsections.map((subsection, subIndex) => {
-                    const subsectionKey = `${sectionIndex}-${subIndex}`;
-                    // Subsections are collapsed by default (only open if explicitly set to true)
-                    const isSubsectionOpen = openSubsections[subsectionKey] === true;
-                    
-                    return (
-                      <div key={subIndex} className="space-y-2 border-l-2 border-gray-200 dark:border-gray-700 pl-4">
-                        <button
-                          onClick={() => toggleSubsection(sectionIndex, subIndex)}
-                          className="w-full text-left flex justify-between items-center py-2 font-semibold text-gray-800 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                        >
-                          <span className="text-lg">{subsection.title}</span>
-                          <svg
-                            className={`w-5 h-5 transform transition-transform ${
-                              isSubsectionOpen ? 'rotate-180' : ''
-                            }`}
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        {isSubsectionOpen && (
-                          <div className="space-y-4 pl-4">
-                            {subsection.questions.map((q, qIndex) => (
-                              <div key={qIndex} className="border-b border-gray-200 dark:border-gray-700 pb-4 last:border-0 last:pb-0">
-                                <div className="grid gap-2 mb-1" style={{gridTemplateColumns:'auto 1fr'}}>
-                                  <span className="font-bold text-gray-700 dark:text-gray-300">Q.</span>
-                                  <p className="font-semibold text-gray-800 dark:text-gray-200">{q.question}</p>
-                                </div>
-                                <div className="grid gap-2 mt-2" style={{gridTemplateColumns:'auto 1fr'}}>
-                                  <span className="font-bold text-gray-700 dark:text-gray-300">A.</span>
-                                  <p className="text-gray-700 dark:text-gray-300">{q.answer}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {renderSubsections(section.subsections, sectionIndex.toString())}
                 </div>
               )}
             </div>
